@@ -22,7 +22,15 @@ export function MatchCard({ match, timezone }: { match: TennisMatch; timezone: s
   const matchReactions = reactions.filter((r) => r.match_id === match.id);
   const myReaction = matchReactions.find((r) => r.profile_id === profile?.id)?.emoji;
   const count = (id: string) => matchPicks.filter((p) => p.selected_player_id === id).length;
-  const locked = match.state !== "upcoming" || new Date(match.startsAt).getTime() <= Date.now();
+  // Scheduled tennis times move constantly. Lock only when the live feed
+  // says the match is no longer upcoming, not merely because a provisional
+  // scheduled time has passed.
+  const locked = match.state !== "upcoming";
+  const scheduledTimePassed = Boolean(
+    match.startsAt &&
+    match.state === "upcoming" &&
+    new Date(match.startsAt).getTime() <= Date.now()
+  );
   const isFav = favorites.includes(match.first.id) || favorites.includes(match.second.id);
 
   useEffect(() => {
@@ -37,12 +45,12 @@ export function MatchCard({ match, timezone }: { match: TennisMatch; timezone: s
 
   const sets = useMemo(() => Math.max(match.sets.length, 0), [match.sets.length]);
   const revealFamily = Boolean(userPick) || locked;
-  const newYork = timeLabel(match.startsAt, "America/New_York");
+  const newYork = match.startsAt ? timeLabel(match.startsAt, "America/New_York") : "TBD";
 
   return <article className="match-card">
     <button className="match-main" onClick={()=>setOpen(!open)}>
       <div className="match-meta"><div className="meta-left">
-        {match.state === "live" ? <span className="live-label">LIVE</span> : <strong>{timeLabel(match.startsAt, timezone)}</strong>}
+        {match.state === "live" ? <span className="live-label">LIVE</span> : <strong>{match.startsAt ? timeLabel(match.startsAt, timezone) : "TBD"}</strong>}
         <span>{match.court ?? "Court TBC"}</span><span>·</span><span>{match.round}</span>
       </div>{open ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}</div>
       {[match.first, match.second].map((p, idx) => <div className="player-row" key={p.id}>
@@ -50,7 +58,19 @@ export function MatchCard({ match, timezone }: { match: TennisMatch; timezone: s
         <div style={{display:"flex",gap:7}}>{Array.from({length:sets}).map((_,s)=><span className="set-score" key={s}>{idx===0?match.sets[s]?.first:match.sets[s]?.second}</span>)}</div>
         <div className="game">{match.state === "live" ? (idx===0 && match.gameScore ? match.gameScore.split(/[–-]/)[0]?.trim() : idx===1 && match.gameScore ? match.gameScore.split(/[–-]/)[1]?.trim() : "") : match.winnerPlayerId === p.id ? "✓" : ""}</div>
       </div>)}
-      <div className="match-bottom"><span>{match.state === "live" ? match.statusLabel ?? "In play" : match.state === "completed" ? "Final" : timezone === "America/New_York" ? `${newYork} New York` : `${timeLabel(match.startsAt, timezone)} local · ${newYork} New York`}</span><span>{matchPicks.length ? `${matchPicks.length} family pick${matchPicks.length===1?"":"s"}` : isFav ? "Favourite player" : "Tap for details"}</span></div>
+      <div className="match-bottom"><span>{
+        match.state === "live"
+          ? match.statusLabel ?? "In play"
+          : match.state === "completed"
+            ? "Final"
+            : !match.startsAt
+              ? "Start time TBC"
+              : scheduledTimePassed
+                ? `Awaiting start · scheduled ${timeLabel(match.startsAt, timezone)}`
+                : timezone === "America/New_York"
+                  ? `${newYork} New York`
+                  : `${timeLabel(match.startsAt, timezone)} local · ${newYork} New York`
+      }</span><span>{matchPicks.length ? `${matchPicks.length} family pick${matchPicks.length===1?"":"s"}` : isFav ? "Favourite player" : "Tap for details"}</span></div>
     </button>
     {open && <div className="details">
       <div style={{display:"flex",justifyContent:"flex-end",gap:4,marginBottom:10}}>

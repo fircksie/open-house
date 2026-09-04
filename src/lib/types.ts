@@ -18,7 +18,7 @@ export type TennisMatch = {
   tour: Tour;
   round: string;
   court?: string;
-  startsAt: string;
+  startsAt?: string;
   state: MatchState;
   statusLabel?: string;
   first: Player;

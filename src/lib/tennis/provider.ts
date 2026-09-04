@@ -21,11 +21,17 @@ function nyDate() {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
-function parseUtc(date: unknown, time: unknown) {
-  const d = str(date);
-  const t = str(time) || "00:00";
+function parseUtc(date: unknown, time: unknown): string | undefined {
+  const d = str(date).trim();
+  const t = str(time).trim();
+
+  // API-Tennis can return a fixture before an exact start time is assigned.
+  // Treat that as genuinely TBD rather than inventing 00:00, which would make
+  // the app think the match had already started.
+  if (!d || !t) return undefined;
+
   const parsed = new Date(`${d}T${t.length === 5 ? `${t}:00` : t}Z`);
-  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
 function stateOf(r: Raw): MatchState {
@@ -108,7 +114,11 @@ export async function getTodayFeed(): Promise<MatchFeed> {
       m.first.rank = a?.rank; m.first.country = a?.country;
       m.second.rank = b?.rank; m.second.country = b?.country;
     });
-    matches.sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+    matches.sort((a, b) => {
+      const aTime = a.startsAt ? new Date(a.startsAt).getTime() : Number.POSITIVE_INFINITY;
+      const bTime = b.startsAt ? new Date(b.startsAt).getTime() : Number.POSITIVE_INFINITY;
+      return aTime - bTime;
+    });
     return { matches, updatedAt: new Date().toISOString(), demo: false, tournamentDate: date };
   } catch (error) {
     console.error(error);

@@ -155,7 +155,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
 
   const submitPick = useCallback(async (match: TennisMatch, playerId: string, isUnderdog: boolean) => {
     if (!profile) return;
-    if (new Date(match.startsAt).getTime() <= Date.now() || match.state !== "upcoming") return;
+    if (match.state !== "upcoming") return;
     if (mode === "local" || !supabase) {
       const raw = localStorage.getItem(LOCAL_KEY); const state = raw ? JSON.parse(raw) as LocalState : defaultLocal();
       const existing = state.picks.find((p) => p.profile_id === profile.id && p.match_id === match.id);
@@ -167,7 +167,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       saveLocal(state); return;
     }
     const { error } = await supabase.rpc("submit_pick", {
-      p_match_id: match.id, p_selected_player_id: playerId, p_match_starts_at: match.startsAt, p_is_underdog_pick: isUnderdog,
+      p_match_id: match.id, p_selected_player_id: playerId, p_match_starts_at: match.startsAt ?? null, p_is_underdog_pick: isUnderdog,
     });
     if (error) throw error; await refresh();
   }, [mode, profile, refresh, saveLocal, supabase]);
