@@ -107,9 +107,50 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
 
   const joinFamily = useCallback(async (name: string, code: string) => {
     if (!supabase || mode === "local") return null;
-    const { error } = await supabase.rpc("join_family", { p_display_name: name.trim(), p_invite_code: code.trim().toUpperCase() });
+
+    const { data, error } = await supabase.rpc("join_family", {
+      p_display_name: name.trim(),
+      p_invite_code: code.trim().toUpperCase(),
+    });
+
     if (error) return error.message;
-    await refresh(); return null;
+
+    // join_family returns the profile row it just created/updated. Use that
+    // immediately so onboarding closes as soon as the join succeeds instead
+    // of depending on a second profile query completing first.
+    const joined = (Array.isArray(data) ? data[0] : data) as
+      | { id?: string; display_name?: string; family_id?: string }
+      | null;
+
+    if (joined?.id && joined.display_name && joined.family_id) {
+      const joinedProfile: FamilyProfile = {
+        id: joined.id,
+        display_name: joined.display_name,
+        family_id: joined.family_id,
+      };
+      setProfile(joinedProfile);
+      setNeedsOnboarding(false);
+      setMembers((current) =>
+        current.some((member) => member.id === joinedProfile.id)
+          ? current
+          : [...current, joinedProfile],
+      );
+    } else {
+      // The RPC succeeded, so do not leave the join modal stuck open even if
+      // the returned payload is unexpectedly empty. refresh() below will
+      // reconcile the full family state from Supabase.
+      setNeedsOnboarding(false);
+    }
+
+    // Pull the rest of the family state after onboarding has already closed.
+    // Do not make a transient refresh problem force the user to re-join.
+    try {
+      await refresh();
+    } catch (refreshError) {
+      console.error("Open House family refresh failed after join", refreshError);
+    }
+
+    return null;
   }, [mode, refresh, supabase]);
 
   const submitPick = useCallback(async (match: TennisMatch, playerId: string, isUnderdog: boolean) => {
