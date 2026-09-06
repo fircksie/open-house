@@ -3,16 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Star } from "lucide-react";
 import type { Prediction, TennisMatch } from "@/lib/types";
+import { PlayerFlag } from '@/components/player-flag';
+import { friendlyMatchTime } from '@/lib/match-time';
 import { useFamily } from "@/components/family-provider";
-
-function dateKey(iso: string, timezone: string) {
-  return new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: timezone,
-  }).format(new Date(iso));
-}
 
 function timeLabel(iso: string, timezone: string, includeDay = false) {
   return new Intl.DateTimeFormat("en-ZA", {
@@ -82,16 +75,11 @@ export function MatchCard({ match, timezone }: { match: TennisMatch; timezone: s
   const sets = useMemo(() => Math.max(match.sets.length, 0), [match.sets.length]);
   const revealFamily = Boolean(userPick) || locked;
 
-  const nowIso = new Date().toISOString();
-  const includeLocalDay = Boolean(
-    match.startsAt &&
-    dateKey(match.startsAt, timezone) !== dateKey(nowIso, timezone),
-  );
-  const localTime = match.startsAt ? timeLabel(match.startsAt, timezone, includeLocalDay) : "TBD";
+  const localTime = friendlyMatchTime(match.startsAt, timezone, new Date());
   const newYork = match.startsAt ? timeLabel(match.startsAt, "America/New_York", false) : "TBD";
 
   return (
-    <article className="match-card">
+    <article className={`match-card ${isFav ? "has-favourite" : ""}`}>
       <button className="match-main" onClick={() => setOpen(!open)}>
         <div className="match-meta">
           <div className="meta-left">
@@ -118,7 +106,8 @@ export function MatchCard({ match, timezone }: { match: TennisMatch; timezone: s
               <span className="rank">
                 {p.rank ? `#${p.rank}` : p.seed ? `[${p.seed}]` : countryShort(p.country)}
               </span>
-              <span className="player-name">{p.name}</span>
+              <span className="player-identity"><span className="player-name"><PlayerFlag country={p.country} />{p.name}</span>
+                {userPick?.selected_player_id === p.id && <span className={'your-pick ' + (match.winnerPlayerId === p.id ? 'pick-won' : '')}>{match.winnerPlayerId === p.id ? '✓ Your pick won' : 'Your pick'}</span>}</span>
               {match.servingPlayerId === p.id && <span className="serve" />}
             </div>
 

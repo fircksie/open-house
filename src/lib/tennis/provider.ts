@@ -115,6 +115,7 @@ function normaliseMatch(r: Raw): TennisMatch | null {
     id: str(r[`${prefix}_player_key`]),
     name: str(r[`event_${prefix}_player`]) || "TBD",
     image: str(r[`event_${prefix}_player_logo`]) || undefined,
+    country: str(r[`event_${prefix}_player_country`]) || undefined,
   });
 
   const court =
@@ -198,9 +199,9 @@ export async function getTodayFeed(): Promise<MatchFeed> {
       const a = rankMap.get(m.first.id);
       const b = rankMap.get(m.second.id);
       m.first.rank = a?.rank;
-      m.first.country = a?.country;
+      m.first.country = a?.country || m.first.country;
       m.second.rank = b?.rank;
-      m.second.country = b?.country;
+      m.second.country = b?.country || m.second.country;
     });
 
     matches.sort((a, b) => {
@@ -251,6 +252,7 @@ function drawPlayer(slot: Raw | undefined, which: "first" | "second"): Player | 
     name,
     seed: num(nested?.seed ?? slot[`${which}_player_seed`]),
     image: str(nested?.logo) || undefined,
+    country: str(nested?.country) || str(slot[`${which}_player_country`]) || undefined,
   };
 }
 

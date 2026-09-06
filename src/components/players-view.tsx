@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { PlayerFlag } from '@/components/player-flag';
 import { Star } from "lucide-react";
 import type { Player, Tour } from "@/lib/types";
 import { useFamily } from "@/components/family-provider";
@@ -12,6 +13,6 @@ export function PlayersView(){
   return <main><header className="page-head"><div className="eyebrow">Players</div><h2>Your favourites</h2><div className="sub">Star players to surface their matches on Today.</div></header>
     <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",marginBottom:12}}><div className="tabs"><button className={`tab ${tour==="men"?"active":""}`} onClick={()=>setTour("men")}>ATP</button><button className={`tab ${tour==="women"?"active":""}`} onClick={()=>setTour("women")}>WTA</button></div></div>
     <input className="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search players…"/>
-    <section className="card" style={{marginTop:12}}>{demo?<div className="empty">Connect API-Tennis to load the current ATP/WTA ranking list. Favourite players from demo matches still work on Today.</div>:<div className="player-list">{filtered.map(p=><div className="player-item" key={p.id}><div className="rank-badge">#{p.rank}</div><div><div className="leader-name">{p.name}</div><div className="sub">{p.country??""}</div></div><button className={`star ${favorites.includes(p.id)?"on":""}`} onClick={()=>toggleFavorite(p.id)} aria-label={`Favourite ${p.name}`}><Star size={20} fill={favorites.includes(p.id)?"currentColor":"none"}/></button></div>)}</div>}</section>
+    <section className="card" style={{marginTop:12}}>{demo?<div className="empty">Connect API-Tennis to load the current ATP/WTA ranking list. Favourite players from demo matches still work on Today.</div>:<div className="player-list">{filtered.map(p=><div className={`player-item ${favorites.includes(p.id) ? "favourite-player" : ""}`} key={p.id}><div className="rank-badge">#{p.rank}</div><div><div className="leader-name"><PlayerFlag country={p.country} />{p.name}</div><div className="sub">{p.country??""}</div></div><button className={`star ${favorites.includes(p.id)?"on":""}`} onClick={()=>toggleFavorite(p.id)} aria-label={`Favourite ${p.name}`}><Star size={20} fill={favorites.includes(p.id)?"currentColor":"none"}/></button></div>)}</div>}</section>
   </main>
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DrawFeed, Tour } from "@/lib/types";
+import { PlayerFlag } from '@/components/player-flag';
 import { useFamily } from "@/components/family-provider";
 
 export function DrawView() {
@@ -53,11 +54,13 @@ export function DrawView() {
                         <div className="draw-match" key={m.id}>
                           <DrawPlayer
                             name={safeName(m.first?.name)}
+                            country={m.first?.country}
                             won={Boolean(m.first?.id && m.winnerPlayerId === m.first.id)}
                             fav={Boolean(m.first?.id && favorites.includes(m.first.id))}
                           />
                           <DrawPlayer
                             name={safeName(m.second?.name)}
+                            country={m.second?.country}
                             won={Boolean(m.second?.id && m.winnerPlayerId === m.second.id)}
                             fav={Boolean(m.second?.id && favorites.includes(m.second.id))}
                           />
@@ -101,10 +104,10 @@ function safeName(name: unknown) {
   return clean;
 }
 
-function DrawPlayer({ name, won, fav }: { name: string; won: boolean; fav: boolean }) {
+function DrawPlayer({ name, country, won, fav }: { name: string; country?: string; won: boolean; fav: boolean }) {
   return (
-    <div className={`draw-player ${won ? "winner" : ""}`}>
-      <span>{name}</span>
+    <div className={`draw-player ${won ? "winner" : ""} ${fav ? "favourite-player" : ""}`}>
+      <span><PlayerFlag country={country} />{name}</span>
       <span>{won ? "✓" : fav ? "★" : ""}</span>
     </div>
   );
