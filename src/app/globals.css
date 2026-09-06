@@ -156,3 +156,45 @@ h1 { margin:0; font-size:clamp(40px, 7vw, 74px); line-height:.95; letter-spacing
 .meta-left { flex-wrap:wrap; }
 .match-bottom { gap:10px; flex-wrap:wrap; }
 @media(max-width:400px) { .player { gap:5px; } .player-row { gap:5px; } .match-main { padding:13px; } .game { min-width:25px; } }
+
+/* Road to the final */
+.draw-notice { border:1px solid var(--line); background:#fff6d9; border-radius:12px; padding:12px 15px; margin-bottom:16px; color:#695321; font-size:13px; }
+.draw-notice button { border:0; background:transparent; color:var(--blue-deep); text-decoration:underline; font-weight:700; }
+.draw-round-tabs { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; background:#eae8df; border-radius:14px; padding:5px; margin-bottom:20px; }
+.draw-round-tabs button { border:0; border-radius:10px; padding:11px 3px; background:transparent; color:var(--muted); font-size:13px; font-weight:750; }
+.draw-round-tabs button.active { background:var(--ink); color:white; }
+.draw-column { display:none; }
+.draw-column.is-active { display:block; }
+.draw-column h3 { font-size:18px; margin:0 0 16px; letter-spacing:-.025em; }
+.draw-column h3 small { display:block; font-size:12px; margin-top:5px; font-weight:500; letter-spacing:0; color:var(--muted); }
+.draw-column-matches { display:grid; gap:12px; }
+.road-match { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:13px; box-shadow:0 5px 18px rgba(16,33,60,.04); }
+.road-match:focus { outline:3px solid var(--blue); outline-offset:3px; }
+.road-favourite { border-color:#cfb96d; box-shadow:inset 3px 0 #cfb96d; }
+.road-meta { display:flex; justify-content:space-between; gap:10px; color:var(--muted); text-transform:uppercase; font-size:10px; letter-spacing:.035em; font-weight:750; margin-bottom:9px; }
+.road-player { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 4px; min-height:36px; border-radius:7px; }
+.road-player-name { display:flex; align-items:center; flex-wrap:wrap; gap:3px; font-size:13px; line-height:1.35; min-width:0; }
+.road-player-name .player-flag { margin-right:2px; }
+.road-player-name small { color:var(--muted); font-size:10px; margin-left:3px; }
+.road-winner { background:#e7f3e8; color:#245938; font-weight:750; }
+.road-star { color:#97740c; margin-left:3px; }
+.road-score { display:flex; gap:7px; font-size:13px; font-variant-numeric:tabular-nums; font-weight:800; flex-shrink:0; }
+.road-footer { border-top:1px solid var(--line); margin-top:9px; padding-top:8px; font-size:11px; color:var(--muted); }
+.road-footer button { width:100%; border:0; padding:2px 0; text-align:left; background:none; color:var(--blue-deep); font-size:11px; font-weight:700; }
+.road-footer button span { float:right; }
+.road-champion { color:#75601a; font-weight:700; }
+.draw-desktop-hint,.draw-connections { display:none; }
+.draw-scroll:focus-visible { outline:2px solid var(--blue); outline-offset:5px; }
+@media(min-width:1000px) {
+  .draw-round-tabs { display:none; }
+  .draw-desktop-hint { display:block; font-size:12px; margin-bottom:18px; }
+  .draw-scroll { overflow-x:auto; padding:5px 5px 18px; }
+  .draw-board { position:relative; display:grid; grid-template-columns:repeat(4,280px); gap:36px; width:max-content; }
+  .draw-column { display:block; position:relative; z-index:1; }
+  .draw-column-matches { display:block; position:relative; height:1600px; }
+  .road-match { position:absolute; top:calc(var(--slot) * 200px); transform:translateY(-50%); width:280px; }
+  .draw-pending { margin-top:14px; font-size:13px; }
+  .draw-connections { display:block; position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+  .draw-connections path { fill:none; stroke:#b9c4d0; stroke-width:2; }
+}
+@media(prefers-reduced-motion:reduce) { .draw-scroll { scroll-behavior:auto; } }

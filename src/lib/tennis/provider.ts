@@ -288,7 +288,10 @@ export async function getDraw(tour: Tour): Promise<DrawFeed> {
           (oldWinner.includes("first") ? first?.id : oldWinner.includes("second") ? second?.id : undefined);
 
         return {
-          id: str(m.match_key) || str(m.event_key) || str(m.draw_key) || `${name}-${index}`,
+          id: str(m.draw_key) || str(m.match_key) || str(m.event_key) || `${name}-${index}`,
+          nextMatchId: str(m.next_slot_key) || undefined,
+          matchNumber: num(m.match_number),
+          result: str(m.result) || undefined,
           round: name,
           first,
           second,

@@ -48,6 +48,9 @@ export type Prediction = {
 
 export type DrawMatch = {
   id: string;
+  nextMatchId?: string;
+  matchNumber?: number;
+  result?: string;
   round: string;
   first?: Player;
   second?: Player;

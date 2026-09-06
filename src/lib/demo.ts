@@ -67,35 +67,19 @@ export function demoToday(): MatchFeed {
 }
 
 export function demoDraw(tour: "men" | "women"): DrawFeed {
-  const selected = matches.filter((m) => m.tour === tour);
-  const quarter = selected.map((m) => ({
-    id: `draw-${m.id}`,
-    round: "Quarter-finals",
-    first: m.first,
-    second: m.second,
-    winnerPlayerId: m.winnerPlayerId,
-    state: m.state,
-    startsAt: m.startsAt,
-  }));
-  return {
-    tour,
-    demo: true,
-    updatedAt: new Date().toISOString(),
-    rounds: [
-      { name: "Quarter-finals", matches: quarter },
-      {
-        name: "Semi-finals",
-        matches: [
-          {
-            id: `demo-${tour}-semi`,
-            round: "Semi-finals",
-            first: tour === "men" ? { id: "p-aria", name: "Aria Novak" } : { id: "p-maya", name: "Maya Laurent" },
-            second: undefined,
-            state: "upcoming",
-          },
-        ],
-      },
-      { name: "Final", matches: [{ id: `demo-${tour}-final`, round: "Final", state: "upcoming" }] },
-    ],
-  };
+  const names = tour === "men"
+    ? ['Aria Novak','Leo Mercer','Eli Navarro','Tomas Reid','Luca Marin','Ben Clarke','Kai Jensen','Noah Silva','Max Vogel','Hugo Moreau','Oscar Berg','Alex Kim','Felix Costa','Sam De Vries','Nico Rossi','Owen Park']
+    : ['Maya Laurent','Sora Ito','Nia Petrov','Zara Bell','Eva Marin','Ava Clarke','Lina Jensen','Sofia Silva','Mia Vogel','Lea Moreau','Ella Berg','Yuna Kim','Ines Costa','Liv De Vries','Giulia Rossi','Chloe Park'];
+  const countries = ['Croatia','United States','Spain','Australia','Italy','Great Britain','Denmark','Brazil','Germany','France','Sweden','South Korea','Portugal','Netherlands','Italy','Canada'];
+  const players = names.map((name,i) => ({id:`demo-${tour}-player-${i}`,name,country:countries[i],seed:i+1}));
+  const labels = ['Round of 16','Quarterfinal','Semifinal','Final'];
+  const rounds = labels.map((name,ri) => ({name,matches:Array.from({length:8/2**ri},(_,mi) => {
+    const completed = ri === 0;
+    const known = ri <= 1;
+    return {id:`demo-${tour}-${ri}-${mi}`,round:name,matchNumber:mi+1,nextMatchId:ri < 3 ? `demo-${tour}-${ri+1}-${Math.floor(mi/2)}` : undefined,
+      first:known ? players[mi*2**(ri+1)] : undefined,second:known ? players[mi*2**(ri+1)+2**ri] : undefined,
+      state:completed ? 'completed' as const : ri === 1 && mi === 0 ? 'live' as const : 'upcoming' as const,
+      winnerPlayerId:completed ? players[mi*2].id : undefined,result:completed ? '2 - 0' : ri === 1 && mi === 0 ? '1 - 1' : undefined};
+  })}));
+  return {tour,demo:true,updatedAt:new Date().toISOString(),rounds};
 }
