@@ -4,11 +4,17 @@ import type { DrawFeed, DrawMatch, MatchFeed, MatchState, Player, TennisMatch, T
 
 type Raw = Record<string, unknown>;
 
-const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+const str = (v: unknown) => {
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return "";
+};
 const num = (v: unknown) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 };
+const rawObject = (v: unknown): Raw | undefined =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Raw) : undefined;
 
 function nyDate() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -21,25 +27,68 @@ function nyDate() {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+function utcDate(offsetDays = 0) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
 function parseUtc(date: unknown, time: unknown): string | undefined {
   const d = str(date).trim();
   const t = str(time).trim();
 
-  // API-Tennis can return a fixture before an exact start time is assigned.
-  // Treat that as genuinely TBD rather than inventing 00:00, which would make
-  // the app think the match had already started.
+  // A fixture can exist before an exact start time is assigned. Do not turn
+  // a missing time into midnight, because that falsely makes the match look old.
   if (!d || !t) return undefined;
 
   const parsed = new Date(`${d}T${t.length === 5 ? `${t}:00` : t}Z`);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
+function roundLabel(value: unknown) {
+  const raw = str(value).trim();
+  if (!raw) return "Round TBC";
+
+  const lower = raw.toLowerCase().replaceAll("_", " ").replace(/\s+/g, " ");
+
+  if (lower.includes("1/64") || lower.includes("round of 128") || /\b1st round\b/.test(lower) || /\bfirst round\b/.test(lower)) return "First Round";
+  if (lower.includes("1/32") || lower.includes("round of 64") || /\b2nd round\b/.test(lower) || /\bsecond round\b/.test(lower)) return "Second Round";
+  if (lower.includes("1/16") || lower.includes("round of 32") || /\b3rd round\b/.test(lower) || /\bthird round\b/.test(lower)) return "Third Round";
+  if (lower.includes("1/8") || lower.includes("round of 16")) return "Round of 16";
+  if (lower.includes("1/4") || lower.includes("quarter")) return "Quarterfinal";
+  if (lower.includes("1/2") || lower.includes("semi")) return "Semifinal";
+  if (/\bfinal\b/.test(lower) && !lower.includes("semi") && !lower.includes("quarter")) return "Final";
+
+  return raw;
+}
+
 function stateOf(r: Raw): MatchState {
   const status = str(r.event_status).toLowerCase();
   const live = str(r.event_live) === "1";
-  if (live) return "live";
+
+  // Some providers update event_status before event_live. Treat obvious
+  // in-match statuses as live too, so family picks close promptly.
+  const looksInPlay =
+    /\bset\s*\d+\b/.test(status) ||
+    status.includes("tie break") ||
+    status.includes("tiebreak") ||
+    status.includes("in progress");
+
+  if (live || looksInPlay) return "live";
   if (status.includes("finished")) return "completed";
-  if (status.includes("suspend") || status.includes("delay")) return "suspended";
+  if (status.includes("suspend")) return "suspended";
+  if (status.includes("cancel") || status.includes("walkover") || status.includes("retired")) return "cancelled";
+
+  // A pre-match delay/postponement should not be treated as a started match.
+  return "upcoming";
+}
+
+function drawStateOf(r: Raw): MatchState {
+  const status = str(r.status).toLowerCase();
+  const live = r.live === true || str(r.live) === "1";
+  if (live || /\bset\s*\d+\b/.test(status)) return "live";
+  if (status.includes("finished") || status === "bye") return "completed";
+  if (status.includes("suspend")) return "suspended";
   if (status.includes("cancel") || status.includes("walkover") || status.includes("retired")) return "cancelled";
   return "upcoming";
 }
@@ -68,12 +117,17 @@ function normaliseMatch(r: Raw): TennisMatch | null {
     image: str(r[`event_${prefix}_player_logo`]) || undefined,
   });
 
+  const court =
+    str(r.event_stadium).trim() ||
+    str(r.event_court).trim() ||
+    undefined;
+
   return {
     id: str(r.event_key),
     tournament,
     tour,
-    round: str(r.tournament_round) || "US Open",
-    court: str(r.event_stadium) || str(r.event_court) || undefined,
+    round: roundLabel(r.tournament_round),
+    court: court && !/^(tba|tbc|tbd)$/i.test(court) ? court : undefined,
     startsAt: parseUtc(r.event_date, r.event_time),
     state: stateOf(r),
     statusLabel: str(r.event_status) || undefined,
@@ -98,28 +152,69 @@ async function rankings() {
 
 export async function getTodayFeed(): Promise<MatchFeed> {
   if (!process.env.API_TENNIS_KEY) return demoToday();
-  const date = nyDate();
+
+  // Fetch enough UTC days to cover the full rolling 36-hour window, even late at night.
+  // This prevents late New York matches (early morning in South Africa/Europe)
+  // from disappearing at a calendar-day boundary.
+  const dateStart = utcDate(-1);
+  const dateStop = utcDate(2);
+
   try {
     const [fixtures, live, rankMap] = await Promise.all([
-      apiTennis<Raw[]>("get_fixtures", { date_start: date, date_stop: date, timezone: "UTC" }, 300),
-      apiTennis<Raw[]>("get_livescore", { timezone: "UTC" }, 75),
+      apiTennis<Raw[]>("get_fixtures", { date_start: dateStart, date_stop: dateStop, timezone: "UTC" }, 120),
+      apiTennis<Raw[]>("get_livescore", { timezone: "UTC" }, 15),
       rankings(),
     ]);
+
     const merged = new Map<string, Raw>();
     fixtures.forEach((m) => merged.set(str(m.event_key), m));
     live.forEach((m) => merged.set(str(m.event_key), m));
-    const matches = [...merged.values()].map(normaliseMatch).filter(Boolean) as TennisMatch[];
+
+    const now = Date.now();
+    const lookBackMs = 24 * 60 * 60 * 1000;
+    const lookAheadMs = 36 * 60 * 60 * 1000;
+
+    const matches = [...merged.values()]
+      .map(normaliseMatch)
+      .filter(Boolean)
+      .filter((m) => {
+        const match = m as TennisMatch;
+        if (match.state === "live") return true;
+        if (!match.startsAt) return match.state === "upcoming";
+
+        const t = new Date(match.startsAt).getTime();
+        if (!Number.isFinite(t)) return true;
+
+        if (match.state === "completed" || match.state === "cancelled" || match.state === "suspended") {
+          return t >= now - lookBackMs;
+        }
+
+        // Keep delayed fixtures around even when their provisional scheduled time
+        // has passed, and show the next 36 hours so overnight matches can be picked.
+        return t >= now - lookBackMs && t <= now + lookAheadMs;
+      }) as TennisMatch[];
+
     matches.forEach((m) => {
-      const a = rankMap.get(m.first.id); const b = rankMap.get(m.second.id);
-      m.first.rank = a?.rank; m.first.country = a?.country;
-      m.second.rank = b?.rank; m.second.country = b?.country;
+      const a = rankMap.get(m.first.id);
+      const b = rankMap.get(m.second.id);
+      m.first.rank = a?.rank;
+      m.first.country = a?.country;
+      m.second.rank = b?.rank;
+      m.second.country = b?.country;
     });
+
     matches.sort((a, b) => {
       const aTime = a.startsAt ? new Date(a.startsAt).getTime() : Number.POSITIVE_INFINITY;
       const bTime = b.startsAt ? new Date(b.startsAt).getTime() : Number.POSITIVE_INFINITY;
       return aTime - bTime;
     });
-    return { matches, updatedAt: new Date().toISOString(), demo: false, tournamentDate: date };
+
+    return {
+      matches,
+      updatedAt: new Date().toISOString(),
+      demo: false,
+      tournamentDate: nyDate(),
+    };
   } catch (error) {
     console.error(error);
     return demoToday();
@@ -134,44 +229,76 @@ async function discoverTournament(tour: Tour) {
 
 function drawPlayer(slot: Raw | undefined, which: "first" | "second"): Player | undefined {
   if (!slot) return undefined;
-  const name = str(slot[`${which}_player_name`] ?? slot[`${which}_player`] ?? slot[`event_${which}_player`]);
-  const id = str(slot[`${which}_player_key`]);
-  if (!name || name.toLowerCase() === "tbd") return undefined;
-  return { id, name, seed: num(slot[`${which}_player_seed`]) };
+
+  // Current API-Tennis draw responses use nested first_player/second_player
+  // objects. Keep the old flattened fallback too for compatibility.
+  const nested = rawObject(slot[`${which}_player`]);
+  const name =
+    str(nested?.name).trim() ||
+    str(nested?.player_name).trim() ||
+    str(slot[`${which}_player_name`]).trim() ||
+    str(slot[`event_${which}_player`]).trim();
+
+  if (!name || /^(tba|tbc|tbd)$/i.test(name)) return undefined;
+
+  const id =
+    str(nested?.player_key).trim() ||
+    str(slot[`${which}_player_key`]).trim() ||
+    `${name.toLowerCase().replace(/\s+/g, "-")}-${which}`;
+
+  return {
+    id,
+    name,
+    seed: num(nested?.seed ?? slot[`${which}_player_seed`]),
+    image: str(nested?.logo) || undefined,
+  };
 }
 
 export async function getDraw(tour: Tour): Promise<DrawFeed> {
   if (!process.env.API_TENNIS_KEY) return demoDraw(tour);
+
   try {
     const tournament = await discoverTournament(tour);
     if (!tournament) throw new Error(`US Open ${tour} tournament not found`);
+
     const payload = await apiTennis<Raw>("get_draw", {
       tournament_key: str(tournament.tournament_key),
       tournament_season: "2026",
       timezone: "UTC",
-    }, 1200);
+    }, 300);
+
     const brackets = Array.isArray(payload.brackets) ? payload.brackets as Raw[] : [];
     const main = brackets.find((b) => !Boolean(b.qualification)) ?? brackets[0];
     const roundsRaw = Array.isArray(main?.rounds) ? main.rounds as Raw[] : [];
+
     const rounds = roundsRaw.map((round) => {
-      const name = str(round.round_name) || "Round";
+      const name = roundLabel(round.round_name);
       const rawMatches = Array.isArray(round.matches) ? round.matches as Raw[] : [];
+
       const matches: DrawMatch[] = rawMatches.map((m, index) => {
         const first = drawPlayer(m, "first");
         const second = drawPlayer(m, "second");
-        const winner = str(m.event_winner).toLowerCase();
+        const winnerKey = str(m.winner_player_key).trim();
+        const oldWinner = str(m.event_winner).toLowerCase();
+
+        const winnerPlayerId =
+          winnerKey ||
+          (oldWinner.includes("first") ? first?.id : oldWinner.includes("second") ? second?.id : undefined);
+
         return {
-          id: str(m.event_key) || `${name}-${index}`,
+          id: str(m.match_key) || str(m.event_key) || str(m.draw_key) || `${name}-${index}`,
           round: name,
           first,
           second,
-          winnerPlayerId: winner.includes("first") ? first?.id : winner.includes("second") ? second?.id : undefined,
-          state: stateOf(m),
+          winnerPlayerId: winnerPlayerId || undefined,
+          state: drawStateOf(m),
           startsAt: m.event_date ? parseUtc(m.event_date, m.event_time) : undefined,
         };
       });
+
       return { name, matches };
     });
+
     return { tour, rounds, demo: false, updatedAt: new Date().toISOString() };
   } catch (error) {
     console.error(error);
