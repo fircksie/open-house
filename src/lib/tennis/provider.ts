@@ -1,3 +1,4 @@
+import { playerDisplayName } from "@/lib/tennis/player-name";
 import { apiTennis } from "@/lib/tennis/api-tennis";
 import { demoDraw, demoToday } from "@/lib/demo";
 import type { DrawFeed, DrawMatch, MatchFeed, MatchState, Player, TennisMatch, Tour } from "@/lib/types";
@@ -113,7 +114,7 @@ function normaliseMatch(r: Raw): TennisMatch | null {
 
   const player = (prefix: "first" | "second"): Player => ({
     id: str(r[`${prefix}_player_key`]),
-    name: str(r[`event_${prefix}_player`]) || "TBD",
+    name: playerDisplayName(str(r[`event_${prefix}_player`])) || "TBD",
     image: str(r[`event_${prefix}_player_logo`]) || undefined,
     country: str(r[`event_${prefix}_player_country`]) || undefined,
   });
@@ -249,7 +250,7 @@ function drawPlayer(slot: Raw | undefined, which: "first" | "second"): Player | 
 
   return {
     id,
-    name,
+    name: playerDisplayName(name),
     seed: num(nested?.seed ?? slot[`${which}_player_seed`]),
     image: str(nested?.logo) || undefined,
     country: str(nested?.country) || str(slot[`${which}_player_country`]) || undefined,
@@ -314,7 +315,7 @@ export async function getDraw(tour: Tour): Promise<DrawFeed> {
 export async function getStandings(tour: Tour) {
   if (!process.env.API_TENNIS_KEY) return [];
   const raw = await apiTennis<Raw[]>("get_standings", { event_type: tour === "men" ? "ATP" : "WTA" }, 21600);
-  return raw.slice(0, 100).map((r) => ({ id: str(r.player_key), name: str(r.player), rank: num(r.place), country: str(r.country) || undefined }));
+  return raw.slice(0, 100).map((r) => ({ id: str(r.player_key), name: playerDisplayName(str(r.player)), rank: num(r.place), country: str(r.country) || undefined }));
 }
 
 export async function getPrediction(firstId: string, secondId: string, tour: Tour) {
